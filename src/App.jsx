@@ -31,11 +31,12 @@ const formatDateForDisplay = (dateStr) => {
   })
 }
 
-const APP_VERSION = 'v0.2.0'
+const APP_VERSION = 'v0.2.1'
 
 function App() {
   const [user, setUser] = useState(null)
   const [showAuth, setShowAuth] = useState(false)
+  const [appError, setAppError] = useState('')
   const [company, setCompany] = useState({
     name: '',
     taxId: '',
@@ -60,6 +61,8 @@ function App() {
   const [quoteName, setQuoteName] = useState('')
   const [quoteDate, setQuoteDate] = useState(() => formatDateForInput(new Date()))
   const [validityDate, setValidityDate] = useState('')
+  const [showCompanyDetails, setShowCompanyDetails] = useState(false)
+  const [showClientDetails, setShowClientDetails] = useState(false)
   const pdfRef = useRef(null)
 
   const addItem = () => {
@@ -83,19 +86,38 @@ function App() {
 
   const updateItem = (id, field, value) => {
     setItems((prev) =>
-      prev.map((i) =>
-        i.id === id
-          ? {
-              ...i,
-              [field]:
-                field === 'amount' || field === 'quantity'
-                  ? parseFloat(value) || 0
-                  : field === 'hasDescription'
-                    ? Boolean(value)
-                    : value,
-            }
-          : i
-      )
+      prev.map((i) => {
+        if (i.id !== id) return i
+
+        if (field === 'amount' || field === 'quantity') {
+          const parsed = parseFloat(value.replace(',', '.'))
+          let num = Number.isNaN(parsed) ? (field === 'quantity' ? 1 : 0) : parsed
+
+          if (field === 'amount') {
+            num = Math.max(0, num)
+          } else {
+            // quantity
+            num = Math.max(1, Math.round(num))
+          }
+
+          return {
+            ...i,
+            [field]: num,
+          }
+        }
+
+        if (field === 'hasDescription') {
+          return {
+            ...i,
+            hasDescription: Boolean(value),
+          }
+        }
+
+        return {
+          ...i,
+          [field]: value,
+        }
+      })
     )
   }
 
@@ -123,6 +145,36 @@ function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
+
+  useEffect(() => {
+    if (!companyStatus.message) return
+    const timeout = setTimeout(() => {
+      setCompanyStatus({ type: '', message: '' })
+    }, 3000)
+    return () => clearTimeout(timeout)
+  }, [companyStatus.message])
+
+  useEffect(() => {
+    if (!showAuth || user) {
+      document.body.style.overflow = ''
+      return
+    }
+
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        setShowAuth(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleEsc)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      window.removeEventListener('keydown', handleEsc)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [showAuth, user])
 
   const subtotal = items.reduce((sum, item) => sum + getSubtotal(item), 0)
   const ivaAmount = subtotal * (ivaPercent / 100)
@@ -264,11 +316,35 @@ function App() {
       }
     }
     const init = async () => {
-      const { data } = await supabase.auth.getUser()
-      if (data?.user) {
-        setUser(data.user)
-        setProfileLoading(true)
-        await loadProfile(data.user.id)
+      const hasSupabaseConfig =
+        Boolean(import.meta.env.VITE_SUPABASE_URL) &&
+        Boolean(import.meta.env.VITE_SUPABASE_ANON_KEY)
+
+      if (!hasSupabaseConfig) {
+        setAppError(
+          'Supabase no está configurado. Revisa VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY en producción.',
+        )
+        return
+      }
+
+      // Config correcto: limpiamos cualquier error global previo
+      setAppError('')
+
+      try {
+        const { data, error } = await supabase.auth.getUser()
+        // Errores típicos como "Auth session missing" al no tener sesión no deben romper la app
+        if (error && !/auth session/i.test(error.message || '')) {
+          console.error('Error al obtener el usuario actual:', error)
+          return
+        }
+        if (data?.user) {
+          setUser(data.user)
+          setProfileLoading(true)
+          await loadProfile(data.user.id)
+        }
+      } catch (err) {
+        // Errores de red u otros imprevistos: logueamos pero no mostramos banner bloqueante
+        console.error('Error inesperado al inicializar la sesión:', err)
       }
     }
     init()
@@ -304,6 +380,11 @@ function App() {
 
   return (
     <div className="app">
+      {appError && (
+        <div className="app-error-banner" role="alert" aria-live="polite">
+          <span>{appError}</span>
+        </div>
+      )}
       <header className="header">
         <div>
           <h1>Cotizador</h1>
@@ -341,142 +422,163 @@ function App() {
       <main className="main">
         <section className="editor-section">
           {user ? (
-            profileLoading ? (
-              <div className="company-card company-skeleton">
-                <div className="company-card-header">
-                  <div>
-                    <div className="skeleton skeleton-title" />
-                    <div className="skeleton skeleton-subtitle" />
+            <div className="collapsible-section">
+              <button
+                type="button"
+                className="collapsible-header"
+                onClick={() => setShowCompanyDetails((v) => !v)}
+                aria-expanded={showCompanyDetails}
+              >
+                <div className="collapsible-header-main">
+                  <div className="collapsible-title-row">
+                    <span className="collapsible-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <rect x="3" y="7" width="7" height="14" rx="1" />
+                        <rect x="14" y="3" width="7" height="18" rx="1" />
+                        <path d="M6 11h1M6 15h1M17 7h1M17 11h1M17 15h1" />
+                      </svg>
+                    </span>
+                    <span className="collapsible-title">Datos de tu empresa</span>
                   </div>
+                  <span className="collapsible-summary">
+                    {company.name || 'Sin datos guardados aún'}
+                  </span>
                 </div>
-                <div className="company-grid">
-                  <div className="company-logo-block">
-                    <div className="skeleton skeleton-logo" />
-                    <div className="skeleton skeleton-btn" />
-                  </div>
-                  <div className="company-fields">
-                    <div className="meta-row">
-                      <div className="skeleton skeleton-input" />
-                      <div className="skeleton skeleton-input" />
+                <span className={`collapsible-chevron${showCompanyDetails ? ' open' : ''}`}>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M8 10l4 4 4-4" />
+                  </svg>
+                </span>
+              </button>
+              {showCompanyDetails &&
+                (profileLoading ? (
+                  <div className="company-card company-skeleton">
+                    <div className="company-card-header">
+                      <div>
+                        <div className="skeleton skeleton-title" />
+                        <div className="skeleton skeleton-subtitle" />
+                      </div>
                     </div>
-                    <div className="meta-row">
-                      <div className="skeleton skeleton-input skeleton-full" />
-                    </div>
-                    <div className="meta-row">
-                      <div className="skeleton skeleton-input" />
-                      <div className="skeleton skeleton-input" />
-                    </div>
-                    <div className="meta-row">
-                      <div className="skeleton skeleton-input skeleton-full" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-            <div className="company-card">
-              <div className="company-card-header">
-                <div>
-                  <h2>Datos de tu empresa</h2>
-                  <p>Se usarán en la cabecera de la cotización.</p>
-                </div>
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm"
-                  onClick={saveCompanyProfile}
-                >
-                  Guardar
-                </button>
-              </div>
-              <div className="company-grid">
-                <div className="company-logo-block">
-                  {company.logoUrl ? (
-                    <img
-                      src={company.logoUrl}
-                      alt="Logo empresa"
-                      className="company-logo"
-                    />
-                  ) : (
-                    <div className="company-logo placeholder">
-                      Logo
-                    </div>
-                  )}
-                  <label className="btn btn-secondary btn-sm logo-upload">
-                    Subir logo
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                    />
-                  </label>
-                  {companyStatus.message && (
-                    <p
-                      className={`company-status company-status-${companyStatus.type}`}
-                    >
-                      {companyStatus.message}
-                    </p>
-                  )}
-                </div>
-                <div className="company-fields">
-                  <div className="meta-row">
-                    <div className="meta-field">
-                      <label>Nombre empresa</label>
-                      <input
-                        type="text"
-                        value={company.name}
-                        onChange={(e) => handleCompanyChange('name', e.target.value)}
-                      />
-                    </div>
-                    <div className="meta-field">
-                      <label>RUT / ID</label>
-                      <input
-                        type="text"
-                        value={company.taxId}
-                        onChange={(e) => handleCompanyChange('taxId', e.target.value)}
-                      />
+                    <div className="company-grid">
+                      <div className="company-logo-block">
+                        <div className="skeleton skeleton-logo" />
+                        <div className="skeleton skeleton-btn" />
+                      </div>
+                      <div className="company-fields">
+                        <div className="meta-row">
+                          <div className="skeleton skeleton-input" />
+                          <div className="skeleton skeleton-input" />
+                        </div>
+                        <div className="meta-row">
+                          <div className="skeleton skeleton-input skeleton-full" />
+                        </div>
+                        <div className="meta-row">
+                          <div className="skeleton skeleton-input" />
+                          <div className="skeleton skeleton-input" />
+                        </div>
+                        <div className="meta-row">
+                          <div className="skeleton skeleton-input skeleton-full" />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="meta-row">
-                    <div className="meta-field">
-                      <label>Dirección</label>
-                      <input
-                        type="text"
-                        value={company.address}
-                        onChange={(e) => handleCompanyChange('address', e.target.value)}
-                      />
+                ) : (
+                  <div className="company-card">
+                    <div className="company-card-header">
+                      <div>
+                        <h2>Datos de tu empresa</h2>
+                        <p>Se usarán en la cabecera de la cotización.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={saveCompanyProfile}
+                      >
+                        Guardar
+                      </button>
+                    </div>
+                    <div className="company-grid">
+                      <div className="company-logo-block">
+                        {company.logoUrl ? (
+                          <img
+                            src={company.logoUrl}
+                            alt="Logo empresa"
+                            className="company-logo"
+                          />
+                        ) : (
+                          <div className="company-logo placeholder">Logo</div>
+                        )}
+                        <label className="btn btn-secondary btn-sm logo-upload">
+                          Subir logo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleLogoUpload}
+                          />
+                        </label>
+                      </div>
+                      <div className="company-fields">
+                        <div className="meta-row">
+                          <div className="meta-field">
+                            <label>Nombre empresa</label>
+                            <input
+                              type="text"
+                              value={company.name}
+                              onChange={(e) => handleCompanyChange('name', e.target.value)}
+                            />
+                          </div>
+                          <div className="meta-field">
+                            <label>RUT / ID</label>
+                            <input
+                              type="text"
+                              value={company.taxId}
+                              onChange={(e) => handleCompanyChange('taxId', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="meta-row">
+                          <div className="meta-field">
+                            <label>Dirección</label>
+                            <input
+                              type="text"
+                              value={company.address}
+                              onChange={(e) => handleCompanyChange('address', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="meta-row">
+                          <div className="meta-field">
+                            <label>Email</label>
+                            <input
+                              type="email"
+                              value={company.email}
+                              onChange={(e) => handleCompanyChange('email', e.target.value)}
+                            />
+                          </div>
+                          <div className="meta-field">
+                            <label>Teléfono</label>
+                            <input
+                              type="text"
+                              value={company.phone}
+                              onChange={(e) => handleCompanyChange('phone', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="meta-row">
+                          <div className="meta-field">
+                            <label>Sitio web</label>
+                            <input
+                              type="text"
+                              value={company.website}
+                              onChange={(e) => handleCompanyChange('website', e.target.value)}
+                            />
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="meta-row">
-                    <div className="meta-field">
-                      <label>Email</label>
-                      <input
-                        type="email"
-                        value={company.email}
-                        onChange={(e) => handleCompanyChange('email', e.target.value)}
-                      />
-                    </div>
-                    <div className="meta-field">
-                      <label>Teléfono</label>
-                      <input
-                        type="text"
-                        value={company.phone}
-                        onChange={(e) => handleCompanyChange('phone', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                  <div className="meta-row">
-                    <div className="meta-field">
-                      <label>Sitio web</label>
-                      <input
-                        type="text"
-                        value={company.website}
-                        onChange={(e) => handleCompanyChange('website', e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+                ))}
             </div>
-            )
           ) : (
             <div className="hint-cta">
               <div className="hint-cta-inner">
@@ -537,6 +639,77 @@ function App() {
             </div>
           )}
 
+          {user && (
+            <div className="client-block">
+              <button
+                type="button"
+                className="collapsible-header client-header"
+                onClick={() => setShowClientDetails((v) => !v)}
+                aria-expanded={showClientDetails}
+              >
+                <div className="collapsible-header-main">
+                  <div className="collapsible-title-row">
+                    <span className="collapsible-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24">
+                        <circle cx="12" cy="8" r="3.5" />
+                        <path d="M5 19c0-3 3-5 7-5s7 2 7 5" />
+                      </svg>
+                    </span>
+                    <span className="collapsible-title">Datos del cliente</span>
+                  </div>
+                  <span className="collapsible-summary">
+                    {clientInfo.name || clientInfo.company || 'Opcional'}
+                  </span>
+                </div>
+                <span className={`collapsible-chevron${showClientDetails ? ' open' : ''}`}>
+                  <svg viewBox="0 0 24 24">
+                    <path d="M8 10l4 4 4-4" />
+                  </svg>
+                </span>
+              </button>
+              {showClientDetails && (
+                <>
+                  <div className="meta-row">
+                    <div className="meta-field">
+                      <label>Nombre</label>
+                      <input
+                        type="text"
+                        value={clientInfo.name}
+                        onChange={(e) => handleClientChange('name', e.target.value)}
+                      />
+                    </div>
+                    <div className="meta-field">
+                      <label>Empresa</label>
+                      <input
+                        type="text"
+                        value={clientInfo.company}
+                        onChange={(e) => handleClientChange('company', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="meta-row">
+                    <div className="meta-field">
+                      <label>RUT / ID</label>
+                      <input
+                        type="text"
+                        value={clientInfo.taxId}
+                        onChange={(e) => handleClientChange('taxId', e.target.value)}
+                      />
+                    </div>
+                    <div className="meta-field">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        value={clientInfo.email}
+                        onChange={(e) => handleClientChange('email', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="quote-meta">
             <div className="meta-field">
               <label htmlFor="quote-name">Nombre</label>
@@ -568,47 +741,6 @@ function App() {
                 />
               </div>
             </div>
-            {user && (
-              <div className="client-block">
-                <h3>Datos del cliente</h3>
-                <div className="meta-row">
-                  <div className="meta-field">
-                    <label>Nombre</label>
-                    <input
-                      type="text"
-                      value={clientInfo.name}
-                      onChange={(e) => handleClientChange('name', e.target.value)}
-                    />
-                  </div>
-                  <div className="meta-field">
-                    <label>Empresa</label>
-                    <input
-                      type="text"
-                      value={clientInfo.company}
-                      onChange={(e) => handleClientChange('company', e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="meta-row">
-                  <div className="meta-field">
-                    <label>RUT / ID</label>
-                    <input
-                      type="text"
-                      value={clientInfo.taxId}
-                      onChange={(e) => handleClientChange('taxId', e.target.value)}
-                    />
-                  </div>
-                  <div className="meta-field">
-                    <label>Email</label>
-                    <input
-                      type="email"
-                      value={clientInfo.email}
-                      onChange={(e) => handleClientChange('email', e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="section-header">
@@ -677,6 +809,7 @@ function App() {
                             updateItem(item.id, 'hasDescription', e.target.checked)
                           }
                           title="Incluir descripción"
+                          aria-label="Incluir descripción del item"
                         />
                       </td>
                       <td>
@@ -684,7 +817,8 @@ function App() {
                           className="btn btn-icon btn-danger"
                           onClick={() => removeItem(item.id)}
                           disabled={items.length <= 1}
-                          title="Eliminar"
+                          title="Eliminar item"
+                          aria-label="Eliminar item"
                         >
                           ×
                         </button>
@@ -707,6 +841,12 @@ function App() {
             </table>
           </div>
 
+          {subtotal === 0 && (
+            <p className="items-hint">
+              Añade montos y cantidades para ver el resumen y la vista previa de la cotización.
+            </p>
+          )}
+
           <div className="totals-section">
             <div className="iva-input-row">
               <label htmlFor="iva">IVA (%)</label>
@@ -717,7 +857,16 @@ function App() {
                 max="100"
                 step="0.1"
                 value={ivaPercent}
-                onChange={(e) => setIvaPercent(parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const raw = e.target.value.replace(',', '.')
+                  const parsed = parseFloat(raw)
+                  if (Number.isNaN(parsed)) {
+                    setIvaPercent(0)
+                    return
+                  }
+                  const clamped = Math.min(100, Math.max(0, parsed))
+                  setIvaPercent(clamped)
+                }}
               />
             </div>
             <div className="total-row">
@@ -865,6 +1014,11 @@ function App() {
                   <strong>Total:</strong>
                   <strong>{formatCurrency(total)}</strong>
                 </div>
+                {subtotal === 0 && (
+                  <p className="pdf-empty-hint">
+                    Añade al menos un item con monto para generar una cotización con totales.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -875,6 +1029,15 @@ function App() {
         <span className="footer-divider">·</span>
         <span>{APP_VERSION}</span>
       </footer>
+      {companyStatus.message && (
+        <div
+          className={`toast toast-${companyStatus.type || 'info'}`}
+          role="status"
+          aria-live="polite"
+        >
+          {companyStatus.message}
+        </div>
+      )}
       {showAuth && !user && (
         <div className="auth-overlay">
           <div className="auth-overlay-backdrop" onClick={() => setShowAuth(false)} />

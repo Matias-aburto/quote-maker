@@ -13,6 +13,16 @@
   align-items: center;
 }
 
+.app-error-banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(127, 29, 29, 0.65);
+  color: #fecaca;
+  font-size: 0.8rem;
+}
+
 .header h1 {
   font-size: 1.5rem;
   font-weight: 600;
@@ -51,6 +61,18 @@
   }
 }
 
+@media (max-width: 600px) {
+  .app {
+    padding: 1.5rem 1rem;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+}
+
 .editor-section,
 .preview-section {
   background: var(--bg-raised);
@@ -60,7 +82,7 @@
 }
 
 .quote-meta {
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
   padding-bottom: 1.25rem;
   border-bottom: 1px solid var(--border-subtle);
 }
@@ -129,11 +151,11 @@
 }
 
 .company-card {
-  background: var(--bg-overlay);
+  background: transparent;
   border-radius: 8px;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--border-subtle);
-  margin-bottom: 1rem;
+  padding: 0.25rem 0;
+  border: none;
+  margin-bottom: 0.5rem;
 }
 
 .company-card.hint {
@@ -295,16 +317,15 @@
 }
 
 .company-grid {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1.6fr);
-  gap: 1.25rem;
-  align-items: flex-start;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
 .company-logo-block {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  flex-direction: row;
+  gap: 0.75rem;
   align-items: flex-start;
 }
 
@@ -350,6 +371,25 @@
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+}
+
+.company-fields .meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.company-fields .meta-row:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 600px) {
+  .quote-meta .meta-row,
+  .company-fields .meta-row,
+  .client-block .meta-row {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Skeleton loader */
@@ -414,13 +454,113 @@
 
 .client-block {
   margin-top: 1.25rem;
+  margin-bottom: 1.25rem;
 }
 
-.client-block h3 {
-  margin: 0 0 0.5rem;
-  font-size: 0.85rem;
-  color: var(--text-secondary);
+.client-header {
+  margin-bottom: 0.5rem;
 }
+
+.client-block .meta-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.client-block .meta-row:last-child {
+  margin-bottom: 0;
+}
+
+.collapsible-section {
+  margin-bottom: 1.5rem;
+}
+
+.collapsible-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.45rem 0.6rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 7px;
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.collapsible-header-main {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+}
+
+.collapsible-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.collapsible-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.collapsible-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--text-tertiary);
+  fill: none;
+  stroke-width: 1.6;
+}
+
+.collapsible-title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.collapsible-summary {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+}
+
+.collapsible-chevron {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.02);
+  transform: rotate(0deg);
+  transition: transform 0.15s ease;
+  color: var(--text-tertiary);
+}
+
+.collapsible-chevron svg {
+  width: 12px;
+  height: 12px;
+  stroke: var(--text-tertiary);
+  fill: none;
+  stroke-width: 1.8;
+}
+
+.collapsible-chevron.open {
+  transform: rotate(180deg);
+}
+
+/* client-header hereda el padding de .collapsible-header para alinear con empresa */
 
 @media (max-width: 768px) {
   .company-grid {
@@ -514,11 +654,25 @@
 .table-wrapper {
   overflow-x: auto;
   margin-bottom: 1rem;
+  position: relative;
 }
 
 .items-table {
   width: 100%;
   border-collapse: collapse;
+}
+
+@media (max-width: 768px) {
+  .table-wrapper::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 32px;
+    pointer-events: none;
+    background: linear-gradient(to left, rgba(0, 0, 0, 0.6), transparent);
+  }
 }
 
 .items-table th,
@@ -590,6 +744,12 @@
 .totals-section {
   border-top: 1px solid var(--border-subtle);
   padding-top: 1rem;
+}
+
+.items-hint {
+  margin: 0.25rem 0 1rem;
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
 }
 
 .iva-input-row {
@@ -981,6 +1141,45 @@
   font-size: 0.875rem;
   font-weight: 500;
   color: #0d0d0d;
+}
+
+.toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+
+.toast-success {
+  border-color: rgba(52, 211, 153, 0.65);
+}
+
+.toast-error {
+  border-color: rgba(248, 113, 113, 0.8);
+}
+
+@media (max-width: 480px) {
+  .toast {
+    right: 1rem;
+    left: 1rem;
+    bottom: 1rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    text-align: center;
+  }
+}
+
+.pdf-empty-hint {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-style: italic;
 }
 
 .feedback-fab {

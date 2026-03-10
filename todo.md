@@ -1,3 +1,8 @@
-[]- Permitir login con google.
-[]- Quitar texto de popup de login o mejorarlo.
-[]- Opcion de notificar de nuevas versiones a mis usuarios. 
+- [] Permitir login con Google.
+- [x] Quitar texto de popup de login o mejorarlo.
+- [] Opción de notificar de nuevas versiones a mis usuarios.
+- [x] Mejorar feedback de errores en login/signup (mensajes claros para email/contraseña y Google).
+- [x] Añadir validaciones suaves y UX en items (cantidades/IVA, comportamiento en móvil).
+- [x] Estados vacíos más claros en editor y preview (hints cuando no hay items con monto).
+- [x] Mejorar accesibilidad y detalles UI (labels, titles, atajos).
+- [x] Pulir UX del modal de auth (cerrar con Esc y bloquear scroll de fondo). 
