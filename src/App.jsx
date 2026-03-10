@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, Fragment } from 'react'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
+import RichTextEditor from './RichTextEditor'
 import './App.css'
 
 const formatCurrency = (value) => {
@@ -30,7 +31,7 @@ const formatDateForDisplay = (dateStr) => {
 
 function App() {
   const [items, setItems] = useState([
-    { id: 1, item: '', description: '', amount: 0, quantity: 1 },
+    { id: 1, item: '', description: '', hasDescription: false, amount: 0, quantity: 1 },
   ])
   const [ivaPercent, setIvaPercent] = useState(19)
   const [quoteName, setQuoteName] = useState('')
@@ -45,6 +46,7 @@ function App() {
         id: Date.now(),
         item: '',
         description: '',
+        hasDescription: false,
         amount: 0,
         quantity: 1,
       },
@@ -65,7 +67,9 @@ function App() {
               [field]:
                 field === 'amount' || field === 'quantity'
                   ? parseFloat(value) || 0
-                  : value,
+                  : field === 'hasDescription'
+                    ? Boolean(value)
+                    : value,
             }
           : i
       )
@@ -86,6 +90,7 @@ function App() {
             id: Date.now(),
             item: '',
             description: '',
+            hasDescription: false,
             amount: 0,
             quantity: 1,
           },
@@ -187,72 +192,85 @@ function App() {
               <thead>
                 <tr>
                   <th>Item</th>
-                  <th>Descripción</th>
                   <th>Monto</th>
                   <th>Cantidad</th>
                   <th>Subtotal</th>
+                  <th className="th-desc">Descripción</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <input
-                        type="text"
-                        placeholder="Nombre del item"
-                        value={item.item}
-                        onChange={(e) => updateItem(item.id, 'item', e.target.value)}
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="text"
-                        placeholder="Opcional"
-                        value={item.description}
-                        onChange={(e) =>
-                          updateItem(item.id, 'description', e.target.value)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="0"
-                        value={item.amount || ''}
-                        onChange={(e) =>
-                          updateItem(item.id, 'amount', e.target.value)
-                        }
-                      />
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="1"
-                        value={item.quantity || ''}
-                        onChange={(e) =>
-                          updateItem(item.id, 'quantity', e.target.value)
-                        }
-                      />
-                    </td>
-                    <td className="subtotal-cell">
-                      {formatCurrency(getSubtotal(item))}
-                    </td>
-                    <td>
-                      <button
-                        className="btn btn-icon btn-danger"
-                        onClick={() => removeItem(item.id)}
-                        disabled={items.length <= 1}
-                        title="Eliminar"
-                      >
-                        ×
-                      </button>
-                    </td>
-                  </tr>
+                  <Fragment key={item.id}>
+                    <tr>
+                      <td>
+                        <input
+                          type="text"
+                          placeholder="Nombre del item"
+                          value={item.item}
+                          onChange={(e) => updateItem(item.id, 'item', e.target.value)}
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          placeholder="0"
+                          value={item.amount || ''}
+                          onChange={(e) =>
+                            updateItem(item.id, 'amount', e.target.value)
+                          }
+                        />
+                      </td>
+                      <td>
+                        <input
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="1"
+                          value={item.quantity || ''}
+                          onChange={(e) =>
+                            updateItem(item.id, 'quantity', e.target.value)
+                          }
+                        />
+                      </td>
+                      <td className="subtotal-cell">
+                        {formatCurrency(getSubtotal(item))}
+                      </td>
+                      <td className="desc-check-cell">
+                        <input
+                          type="checkbox"
+                          checked={item.hasDescription || false}
+                          onChange={(e) =>
+                            updateItem(item.id, 'hasDescription', e.target.checked)
+                          }
+                          title="Incluir descripción"
+                        />
+                      </td>
+                      <td>
+                        <button
+                          className="btn btn-icon btn-danger"
+                          onClick={() => removeItem(item.id)}
+                          disabled={items.length <= 1}
+                          title="Eliminar"
+                        >
+                          ×
+                        </button>
+                      </td>
+                    </tr>
+                    {item.hasDescription && (
+                      <tr className="desc-row">
+                        <td colSpan={6}>
+                          <RichTextEditor
+                            value={item.description}
+                            onChange={(html) => updateItem(item.id, 'description', html)}
+                            placeholder="Listados, negrita, cursiva..."
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -319,7 +337,16 @@ function App() {
                   {items.map((item) => (
                     <tr key={item.id}>
                       <td>{item.item || '—'}</td>
-                      <td>{item.description || '—'}</td>
+                      <td className="pdf-desc-cell">
+                        {item.hasDescription && item.description ? (
+                          <div
+                            dangerouslySetInnerHTML={{ __html: item.description }}
+                            className="pdf-desc-content"
+                          />
+                        ) : (
+                          '—'
+                        )}
+                      </td>
                       <td>{formatCurrency(item.amount)}</td>
                       <td>{item.quantity}</td>
                       <td>{formatCurrency(getSubtotal(item))}</td>

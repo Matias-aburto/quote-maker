@@ -233,6 +233,24 @@
   font-size: 0.8125rem;
 }
 
+.th-desc {
+  width: 80px;
+}
+
+.desc-check-cell {
+  vertical-align: middle;
+}
+
+.desc-check-cell input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.desc-row td {
+  padding: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+
 .totals-section {
   border-top: 1px solid var(--border-subtle);
   padding-top: 1rem;
@@ -350,6 +368,42 @@
 
 .pdf-table td {
   color: #404040;
+}
+
+.pdf-desc-cell {
+  max-width: 180px;
+  vertical-align: top;
+}
+
+.pdf-desc-content {
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.pdf-desc-content ul,
+.pdf-desc-content ol {
+  margin: 0.25rem 0;
+  padding-left: 1rem;
+}
+
+.pdf-desc-content ul {
+  list-style-type: disc;
+}
+
+.pdf-desc-content ol {
+  list-style-type: decimal;
+}
+
+.pdf-desc-content li {
+  margin: 0.125rem 0;
+}
+
+.pdf-desc-content strong {
+  font-weight: 600;
+}
+
+.pdf-desc-content em {
+  font-style: italic;
 }
 
 .pdf-totals {
