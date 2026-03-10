@@ -31,7 +31,7 @@ const formatDateForDisplay = (dateStr) => {
   })
 }
 
-const APP_VERSION = 'v0.1.0'
+const APP_VERSION = 'v0.2.0'
 
 function App() {
   const [user, setUser] = useState(null)
