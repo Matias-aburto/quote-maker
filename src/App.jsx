@@ -29,6 +29,8 @@ const formatDateForDisplay = (dateStr) => {
   })
 }
 
+const APP_VERSION = 'v0.1.0'
+
 function App() {
   const [items, setItems] = useState([
     { id: 1, item: '', description: '', hasDescription: false, amount: 0, quantity: 1 },
@@ -381,6 +383,11 @@ function App() {
           </div>
         </section>
       </main>
+      <footer className="footer">
+        <span>Quote Maker</span>
+        <span className="footer-divider">·</span>
+        <span>{APP_VERSION}</span>
+      </footer>
       {tallyFormId && (
         <button
           type="button"

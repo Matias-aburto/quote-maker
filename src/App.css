@@ -307,6 +307,19 @@
   color: var(--text-primary);
 }
 
+.footer {
+  margin-top: 1.5rem;
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.25rem;
+}
+
+.footer-divider {
+  opacity: 0.6;
+}
+
 /* PDF Preview */
 .pdf-preview {
   background: #ffffff;
