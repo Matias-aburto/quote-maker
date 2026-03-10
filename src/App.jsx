@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, Fragment } from 'react'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
+import { supabase } from './supabaseClient'
 import RichTextEditor from './RichTextEditor'
+import Auth from './Auth'
 import './App.css'
 
 const formatCurrency = (value) => {
@@ -32,6 +34,25 @@ const formatDateForDisplay = (dateStr) => {
 const APP_VERSION = 'v0.1.0'
 
 function App() {
+  const [user, setUser] = useState(null)
+  const [showAuth, setShowAuth] = useState(false)
+  const [company, setCompany] = useState({
+    name: '',
+    taxId: '',
+    address: '',
+    email: '',
+    phone: '',
+    website: '',
+    logoUrl: '',
+  })
+  const [clientInfo, setClientInfo] = useState({
+    name: '',
+    company: '',
+    taxId: '',
+    email: '',
+  })
+  const [companyStatus, setCompanyStatus] = useState({ type: '', message: '' })
+  const [profileLoading, setProfileLoading] = useState(false)
   const [items, setItems] = useState([
     { id: 1, item: '', description: '', hasDescription: false, amount: 0, quantity: 1 },
   ])
@@ -116,6 +137,74 @@ function App() {
     }
   }
 
+  const handleCompanyChange = (field, value) => {
+    setCompany((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleClientChange = (field, value) => {
+    setClientInfo((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const saveCompanyProfile = async () => {
+    if (!user) return
+    setCompanyStatus({ type: 'info', message: 'Guardando…' })
+    const payload = {
+      id: user.id,
+      company_name: company.name || null,
+      tax_id: company.taxId || null,
+      address: company.address || null,
+      email: company.email || null,
+      phone: company.phone || null,
+      website: company.website || null,
+      logo_url: company.logoUrl || null,
+    }
+    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' })
+    if (error) {
+      setCompanyStatus({
+        type: 'error',
+        message: 'No se pudo guardar los datos de empresa.',
+      })
+    } else {
+      setCompanyStatus({
+        type: 'success',
+        message: 'Datos de empresa guardados.',
+      })
+    }
+  }
+
+  const handleLogoUpload = async (event) => {
+    if (!user) return
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    setCompanyStatus({ type: 'info', message: 'Subiendo logo…' })
+
+    const fileExt = file.name.split('.').pop()
+    const filePath = `${user.id}/logo.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('logos')
+      .upload(filePath, file, { upsert: true })
+    if (uploadError) {
+      console.error(uploadError)
+      setCompanyStatus({
+        type: 'error',
+        message: 'No se pudo subir el logo. Revisa el formato o inténtalo de nuevo.',
+      })
+      return
+    }
+
+    const { data } = supabase.storage.from('logos').getPublicUrl(filePath)
+    if (data?.publicUrl) {
+      setCompany((prev) => ({ ...prev, logoUrl: data.publicUrl }))
+      await saveCompanyProfile()
+      setCompanyStatus({
+        type: 'success',
+        message: 'Logo actualizado correctamente.',
+      })
+    }
+  }
+
   const handleExportPDF = async () => {
     if (!pdfRef.current) return
 
@@ -149,15 +238,305 @@ function App() {
     }
   }
 
+  useEffect(() => {
+    const loadProfile = async (userId) => {
+      if (!userId) return
+      setProfileLoading(true)
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('company_name, tax_id, address, email, phone, website, logo_url')
+          .eq('id', userId)
+          .maybeSingle()
+        if (profile) {
+          setCompany({
+            name: profile.company_name || '',
+            taxId: profile.tax_id || '',
+            address: profile.address || '',
+            email: profile.email || '',
+            phone: profile.phone || '',
+            website: profile.website || '',
+            logoUrl: profile.logo_url || '',
+          })
+        }
+      } finally {
+        setProfileLoading(false)
+      }
+    }
+    const init = async () => {
+      const { data } = await supabase.auth.getUser()
+      if (data?.user) {
+        setUser(data.user)
+        setProfileLoading(true)
+        await loadProfile(data.user.id)
+      }
+    }
+    init()
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextUser = session?.user ?? null
+      setUser(nextUser)
+      if (!nextUser) {
+        setCompany({
+          name: '',
+          taxId: '',
+          address: '',
+          email: '',
+          phone: '',
+          website: '',
+          logoUrl: '',
+        })
+        setClientInfo({ name: '', company: '', taxId: '', email: '' })
+        setQuoteName('')
+        setQuoteDate(formatDateForInput(new Date()))
+        setValidityDate('')
+        setItems([{ id: 1, item: '', description: '', hasDescription: false, amount: 0, quantity: 1 }])
+        setIvaPercent(19)
+        setCompanyStatus({ type: '', message: '' })
+      } else {
+        setProfileLoading(true)
+        loadProfile(nextUser.id)
+      }
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
   return (
     <div className="app">
       <header className="header">
-        <h1>Cotizador</h1>
-        <p className="subtitle">Crea cotizaciones rápidas y descárgalas en PDF</p>
+        <div>
+          <h1>Cotizador</h1>
+          <p className="subtitle">Crea cotizaciones rápidas y descárgalas en PDF</p>
+        </div>
+        <div className="header-actions">
+          {user && (
+            <span className="header-user">
+              {user.email}
+            </span>
+          )}
+          {user ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={async () => {
+                await supabase.auth.signOut()
+                setUser(null)
+              }}
+            >
+              Cerrar sesión
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowAuth(true)}
+            >
+              Iniciar sesión
+            </button>
+          )}
+        </div>
       </header>
 
       <main className="main">
         <section className="editor-section">
+          {user ? (
+            profileLoading ? (
+              <div className="company-card company-skeleton">
+                <div className="company-card-header">
+                  <div>
+                    <div className="skeleton skeleton-title" />
+                    <div className="skeleton skeleton-subtitle" />
+                  </div>
+                </div>
+                <div className="company-grid">
+                  <div className="company-logo-block">
+                    <div className="skeleton skeleton-logo" />
+                    <div className="skeleton skeleton-btn" />
+                  </div>
+                  <div className="company-fields">
+                    <div className="meta-row">
+                      <div className="skeleton skeleton-input" />
+                      <div className="skeleton skeleton-input" />
+                    </div>
+                    <div className="meta-row">
+                      <div className="skeleton skeleton-input skeleton-full" />
+                    </div>
+                    <div className="meta-row">
+                      <div className="skeleton skeleton-input" />
+                      <div className="skeleton skeleton-input" />
+                    </div>
+                    <div className="meta-row">
+                      <div className="skeleton skeleton-input skeleton-full" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+            <div className="company-card">
+              <div className="company-card-header">
+                <div>
+                  <h2>Datos de tu empresa</h2>
+                  <p>Se usarán en la cabecera de la cotización.</p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={saveCompanyProfile}
+                >
+                  Guardar
+                </button>
+              </div>
+              <div className="company-grid">
+                <div className="company-logo-block">
+                  {company.logoUrl ? (
+                    <img
+                      src={company.logoUrl}
+                      alt="Logo empresa"
+                      className="company-logo"
+                    />
+                  ) : (
+                    <div className="company-logo placeholder">
+                      Logo
+                    </div>
+                  )}
+                  <label className="btn btn-secondary btn-sm logo-upload">
+                    Subir logo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                    />
+                  </label>
+                  {companyStatus.message && (
+                    <p
+                      className={`company-status company-status-${companyStatus.type}`}
+                    >
+                      {companyStatus.message}
+                    </p>
+                  )}
+                </div>
+                <div className="company-fields">
+                  <div className="meta-row">
+                    <div className="meta-field">
+                      <label>Nombre empresa</label>
+                      <input
+                        type="text"
+                        value={company.name}
+                        onChange={(e) => handleCompanyChange('name', e.target.value)}
+                      />
+                    </div>
+                    <div className="meta-field">
+                      <label>RUT / ID</label>
+                      <input
+                        type="text"
+                        value={company.taxId}
+                        onChange={(e) => handleCompanyChange('taxId', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="meta-row">
+                    <div className="meta-field">
+                      <label>Dirección</label>
+                      <input
+                        type="text"
+                        value={company.address}
+                        onChange={(e) => handleCompanyChange('address', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="meta-row">
+                    <div className="meta-field">
+                      <label>Email</label>
+                      <input
+                        type="email"
+                        value={company.email}
+                        onChange={(e) => handleCompanyChange('email', e.target.value)}
+                      />
+                    </div>
+                    <div className="meta-field">
+                      <label>Teléfono</label>
+                      <input
+                        type="text"
+                        value={company.phone}
+                        onChange={(e) => handleCompanyChange('phone', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="meta-row">
+                    <div className="meta-field">
+                      <label>Sitio web</label>
+                      <input
+                        type="text"
+                        value={company.website}
+                        onChange={(e) => handleCompanyChange('website', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            )
+          ) : (
+            <div className="hint-cta">
+              <div className="hint-cta-inner">
+                <div className="hint-cta-header">
+                  <div className="hint-cta-title">
+                    <svg
+                      className="hint-cta-lock"
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <span>Datos de tu empresa</span>
+                  </div>
+                  <div className="hint-cta-message">
+                    Inicia sesión para guardar el logo y los datos de tu empresa
+                  </div>
+                </div>
+                <div className="hint-cta-placeholders">
+                  <div className="hint-cta-placeholder-block">
+                    <div className="hint-cta-placeholder-logo">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <rect x="3" y="3" width="18" height="18" rx="2" />
+                        <path d="M3 9h18M9 21V9" />
+                      </svg>
+                      Logo
+                    </div>
+                  </div>
+                  <div className="hint-cta-placeholder-fields">
+                    <div className="hint-cta-placeholder-row">
+                      <div className="hint-cta-placeholder-input" />
+                      <div className="hint-cta-placeholder-input" />
+                    </div>
+                    <div className="hint-cta-placeholder-row">
+                      <div className="hint-cta-placeholder-input hint-cta-placeholder-full" />
+                    </div>
+                    <div className="hint-cta-placeholder-row">
+                      <div className="hint-cta-placeholder-input" />
+                      <div className="hint-cta-placeholder-input" />
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-accent hint-cta-btn"
+                  onClick={() => setShowAuth(true)}
+                >
+                  Iniciar sesión para desbloquear
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="quote-meta">
             <div className="meta-field">
               <label htmlFor="quote-name">Nombre</label>
@@ -189,6 +568,47 @@ function App() {
                 />
               </div>
             </div>
+            {user && (
+              <div className="client-block">
+                <h3>Datos del cliente</h3>
+                <div className="meta-row">
+                  <div className="meta-field">
+                    <label>Nombre</label>
+                    <input
+                      type="text"
+                      value={clientInfo.name}
+                      onChange={(e) => handleClientChange('name', e.target.value)}
+                    />
+                  </div>
+                  <div className="meta-field">
+                    <label>Empresa</label>
+                    <input
+                      type="text"
+                      value={clientInfo.company}
+                      onChange={(e) => handleClientChange('company', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="meta-row">
+                  <div className="meta-field">
+                    <label>RUT / ID</label>
+                    <input
+                      type="text"
+                      value={clientInfo.taxId}
+                      onChange={(e) => handleClientChange('taxId', e.target.value)}
+                    />
+                  </div>
+                  <div className="meta-field">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      value={clientInfo.email}
+                      onChange={(e) => handleClientChange('email', e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="section-header">
@@ -325,14 +745,81 @@ function App() {
 
           <div className="pdf-preview" ref={pdfRef}>
             <div className="pdf-content">
-              <h1 className="pdf-title">{quoteName || 'Cotización'}</h1>
-              <div className="pdf-meta">
-                <span>{formatDateForDisplay(quoteDate)}</span>
-                {validityDate && (
-                  <span className="pdf-validity">
-                    Cotización válida hasta {formatDateForDisplay(validityDate)}
-                  </span>
+              <div
+                className={`pdf-header-row ${
+                  !company.logoUrl &&
+                  !company.name &&
+                  !company.address &&
+                  !company.email &&
+                  !company.phone &&
+                  !company.website
+                    ? 'pdf-header-row--no-company'
+                    : ''
+                }`}
+              >
+                {(company.logoUrl ||
+                  company.name ||
+                  company.address ||
+                  company.email ||
+                  company.phone ||
+                  company.website) && (
+                  <div className="pdf-company">
+                    {company.logoUrl && (
+                      <img
+                        src={company.logoUrl}
+                        alt="Logo empresa"
+                        className="pdf-company-logo"
+                      />
+                    )}
+                    {(company.name ||
+                      company.address ||
+                      company.email ||
+                      company.phone ||
+                      company.website) && (
+                      <div className="pdf-company-text">
+                        {company.name && <div className="pdf-company-name">{company.name}</div>}
+                        {company.taxId && <div className="pdf-company-line">RUT / ID: {company.taxId}</div>}
+                        {company.address && <div className="pdf-company-line">{company.address}</div>}
+                        {(company.email || company.phone) && (
+                          <div className="pdf-company-line">
+                            {company.email}
+                            {company.email && company.phone && ' · '}
+                            {company.phone}
+                          </div>
+                        )}
+                        {company.website && (
+                          <div className="pdf-company-line">{company.website}</div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
+                <div className="pdf-meta-block">
+                  <h1 className="pdf-title">{quoteName || 'Cotización'}</h1>
+                  <div className="pdf-meta">
+                    <span>{formatDateForDisplay(quoteDate)}</span>
+                    {validityDate && (
+                      <span className="pdf-validity">
+                        Cotización válida hasta {formatDateForDisplay(validityDate)}
+                      </span>
+                    )}
+                  </div>
+                  {user && (clientInfo.name || clientInfo.company || clientInfo.email) && (
+                    <div className="pdf-client">
+                      <div className="pdf-client-label">Para:</div>
+                      {clientInfo.name && <div className="pdf-client-line">{clientInfo.name}</div>}
+                      {clientInfo.company && (
+                        <div className="pdf-client-line">{clientInfo.company}</div>
+                      )}
+                      {clientInfo.taxId && (
+                        <div className="pdf-client-line">RUT / ID: {clientInfo.taxId}</div>
+                      )}
+                      {clientInfo.email && (
+                        <div className="pdf-client-line">{clientInfo.email}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <table className="pdf-table">
                 <thead>
@@ -388,6 +875,19 @@ function App() {
         <span className="footer-divider">·</span>
         <span>{APP_VERSION}</span>
       </footer>
+      {showAuth && !user && (
+        <div className="auth-overlay">
+          <div className="auth-overlay-backdrop" onClick={() => setShowAuth(false)} />
+          <div className="auth-overlay-panel">
+            <Auth
+              onAuthenticated={(u) => {
+                setUser(u)
+                setShowAuth(false)
+              }}
+            />
+          </div>
+        </div>
+      )}
       {tallyFormId && (
         <button
           type="button"
