@@ -105,6 +105,15 @@ function App() {
   const ivaAmount = subtotal * (ivaPercent / 100)
   const total = subtotal + ivaAmount
 
+  const tallyFormId = import.meta.env.VITE_TALLY_FORM_ID
+
+  const openFeedback = () => {
+    if (!tallyFormId) return
+    if (typeof window !== 'undefined' && window.Tally) {
+      window.Tally.openPopup(tallyFormId, { layout: 'modal' })
+    }
+  }
+
   const handleExportPDF = async () => {
     if (!pdfRef.current) return
 
@@ -372,6 +381,16 @@ function App() {
           </div>
         </section>
       </main>
+      {tallyFormId && (
+        <button
+          type="button"
+          className="feedback-fab"
+          onClick={openFeedback}
+          aria-label="Enviar feedback o reportar bug"
+        >
+          ?
+        </button>
+      )}
     </div>
   )
 }

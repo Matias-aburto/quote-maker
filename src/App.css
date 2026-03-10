@@ -428,3 +428,26 @@
   font-weight: 500;
   color: #0d0d0d;
 }
+
+.feedback-fab {
+  position: fixed;
+  left: 1.5rem;
+  bottom: 1.5rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: var(--accent);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  z-index: 40;
+}
+
+.feedback-fab:hover {
+  background: var(--accent-hover);
+}
