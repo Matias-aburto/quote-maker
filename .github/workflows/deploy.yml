@@ -12,6 +12,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       VITE_TALLY_FORM_ID: ${{ vars.VITE_TALLY_FORM_ID }}
+      VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
