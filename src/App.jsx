@@ -90,7 +90,15 @@ function App() {
         if (i.id !== id) return i
 
         if (field === 'amount' || field === 'quantity') {
-          const parsed = parseFloat(value.replace(',', '.'))
+          // Permitimos cadena vacía mientras el usuario edita
+          if (value === '') {
+            return {
+              ...i,
+              [field]: '',
+            }
+          }
+
+          const parsed = parseFloat(String(value).replace(',', '.'))
           let num = Number.isNaN(parsed) ? (field === 'quantity' ? 1 : 0) : parsed
 
           if (field === 'amount') {

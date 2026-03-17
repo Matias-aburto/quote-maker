@@ -1,4 +1,4 @@
-- [] Permitir login con Google.
+- [X] Permitir login con Google.
 - [x] Quitar texto de popup de login o mejorarlo.
 - [] Opción de notificar de nuevas versiones a mis usuarios.
 - [x] Mejorar feedback de errores en login/signup (mensajes claros para email/contraseña y Google).
